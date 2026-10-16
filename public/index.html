@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slippi JS Analyzer</title>
+    <meta
+      name="description"
+      content="Interactive Project Slippi (.slp) replay file parser, streaming analyzer, and Melee match statistics visualizer."
+    />
+    <meta property="og:title" content="Slippi JS Analyzer" />
+    <meta
+      property="og:description"
+      content="Interactive Project Slippi (.slp) replay file parser, streaming analyzer, and Melee match statistics visualizer."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Plus Jakarta Sans", "sans-serif"],
+              mono: ["JetBrains Mono", "monospace"],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        background-color: #09090b;
+        color: #e4e4e7;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #18181b;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #3f3f46;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #52525b;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-indigo-500 selection:text-white">
+    <!-- Top Navigation Header -->
+    <header class="border-b border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+        <!-- Logo & Branding -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-amber-500 flex items-center justify-center shadow-lg shadow-indigo-600/20 font-black text-white text-base">
+            SLP
+          </div>
+          <div>
+            <h1 class="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+              Slippi-JS Developer Toolkit
+              <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">CLI & Workbench</span>
+            </h1>
+            <p class="text-xs text-zinc-400 hidden sm:block">Advanced Game Mechanics, Input Variance, and Batch Replay Processing</p>
+          </div>
+        </div>
+
+        <!-- Replay Presets Bar -->
+        <div class="flex items-center gap-2 flex-1 max-w-xl justify-end">
+          <div class="relative flex-1 max-w-xs">
+            <select
+              id="sampleSelect"
+              class="w-full bg-zinc-900 border border-zinc-700 hover:border-zinc-600 text-xs text-zinc-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono truncate"
+            >
+              <option value="">Loading replays...</option>
+            </select>
+          </div>
+          <button
+            id="loadSampleBtn"
+            class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-semibold px-3 py-2 rounded-lg transition shadow-sm whitespace-nowrap"
+          >
+            Load Replay
+          </button>
+          <label
+            for="fileInput"
+            class="bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-200 text-xs font-semibold px-3 py-2 rounded-lg transition cursor-pointer border border-zinc-700/80 whitespace-nowrap"
+          >
+            Upload .slp
+            <input type="file" id="fileInput" accept=".slp" class="hidden" />
+          </label>
+        </div>
+      </div>
+    </header>
+
+    <!-- Sub-bar: Active Replay Status -->
+    <div class="bg-zinc-900/40 border-b border-zinc-800/60 px-4 sm:px-6 py-2 text-xs font-mono flex items-center justify-between text-zinc-400">
+      <div class="flex items-center gap-2 truncate">
+        <span class="text-zinc-500">Active File:</span>
+        <span id="activeFileName" class="text-indigo-400 font-bold truncate">slp/ranked_game1_tiebreak.slp</span>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-zinc-400">Local CLI Ready: <code class="text-indigo-300">bin/slippi.mjs</code></span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-5 flex-1 w-full flex flex-col">
+      <!-- Drag & Drop Zone -->
+      <div
+        id="dropZone"
+        class="border border-dashed border-zinc-800 hover:border-indigo-500/60 rounded-xl p-2.5 mb-5 text-center text-xs text-zinc-400 bg-zinc-900/20 hover:bg-zinc-900/40 transition cursor-pointer flex items-center justify-center gap-2"
+      >
+        <span>📁 Drag & drop any local <strong class="text-zinc-300">.slp</strong> replay here or choose from the 40+ built-in test replays</span>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex border-b border-zinc-800 mb-5 gap-2">
+        <button
+          class="tab-btn active border-b-2 border-indigo-500 text-indigo-400 px-4 py-2 text-sm font-semibold flex items-center gap-2 transition"
+          data-tab="cliTab"
+        >
+          <span>💻 Developer CLI Workbench</span>
+        </button>
+        <button
+          class="tab-btn border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 px-4 py-2 text-sm font-semibold flex items-center gap-2 transition"
+          data-tab="analysisTab"
+        >
+          <span>📊 Match Analysis</span>
+        </button>
+        <button
+          class="tab-btn border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 px-4 py-2 text-sm font-semibold flex items-center gap-2 transition"
+          data-tab="streamTab"
+        >
+          <span>⚡ Live Stream Simulator</span>
+        </button>
+        <button
+          class="tab-btn border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 px-4 py-2 text-sm font-semibold flex items-center gap-2 transition"
+          data-tab="galleryTab"
+        >
+          <span>🗂️ Replay Library (40+)</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: Developer CLI Workbench (Main Focus) -->
+      <div id="cliTab" class="tab-pane flex-1 flex flex-col space-y-5">
+        <!-- Top Half: Visual Command Builder (Friendly UI) -->
+        <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-5 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <span>🛠️ Command Builder & Flag Configurator</span>
+              </h2>
+              <p class="text-xs text-zinc-400 mt-0.5">
+                Select a command, configure required parameters and optional flags, and run directly against your local CLI.
+              </p>
+            </div>
+            <button
+              id="cliRunFormBtn"
+              class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-sm flex items-center gap-1.5"
+            >
+              <span>▶ Execute Generated Command</span>
+            </button>
+          </div>
+
+          <!-- Command Selection Grid -->
+          <div id="cliCommandButtons" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+            <!-- Dynamically populated from /api/cli/schema -->
+          </div>
+
+          <!-- Dynamic Form Fields & Flags -->
+          <div id="cliFormContainer" class="bg-zinc-950/70 border border-zinc-800 rounded-xl p-4">
+            <!-- Dynamically populated from schema -->
+          </div>
+
+          <!-- Live Command Preview Bar -->
+          <div class="mt-4 bg-zinc-950 border border-zinc-800/90 rounded-lg p-3 flex items-center justify-between gap-3 font-mono text-xs">
+            <div class="flex items-center gap-2 truncate">
+              <span class="text-zinc-500 select-none">Generated CLI Command:</span>
+              <code id="cliCommandPreview" class="text-amber-400 font-bold truncate">slippi mechanics slp/wavedash-1.slp --tech=wavedash --details</code>
+            </div>
+          </div>
+        </div>
+
+        <!-- Middle Half: Direct Text-Box Terminal Prompt & Preset Chips -->
+        <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-4">
+          <div class="flex items-center justify-between gap-3 mb-2.5">
+            <span class="text-xs font-bold text-zinc-300 font-mono uppercase tracking-wider flex items-center gap-1.5">
+              <span>⌨️ Direct Terminal Prompt (Text-Box)</span>
+            </span>
+            <div class="flex items-center gap-1.5 overflow-x-auto text-[11px] font-mono">
+              <span class="text-zinc-500 text-[10px]">Quick Presets:</span>
+              <button class="cli-preset-btn px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition" data-cmd="slippi mechanics slp/wavedash-1.slp --details">
+                Wavedashes
+              </button>
+              <button class="cli-preset-btn px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition" data-cmd="slippi mechanics slp/lCancel.slp --tech=lcancel --details">
+                L-Cancels
+              </button>
+              <button class="cli-preset-btn px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition" data-cmd="slippi inputs slp/wavedash-1.slp --stick-scatter">
+                Stick Scatter
+              </button>
+              <button class="cli-preset-btn px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition" data-cmd="slippi batch slp/ --include-mechanics">
+                Batch Scan
+              </button>
+              <button class="cli-preset-btn px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition" data-cmd="slippi filter slp/ --character=Falco">
+                Filter Falco
+              </button>
+            </div>
+          </div>
+
+          <!-- Text-Box Prompt Line -->
+          <div class="flex items-center gap-2">
+            <div class="flex-1 flex items-center bg-zinc-950 border border-zinc-700 focus-within:border-indigo-500 rounded-lg px-3 py-2 font-mono text-xs shadow-inner">
+              <span class="text-indigo-400 font-bold mr-2 select-none">slippi &gt;</span>
+              <input
+                type="text"
+                id="cliPromptInput"
+                value="slippi mechanics slp/wavedash-1.slp --details"
+                placeholder="type any command, e.g. mechanics slp/wavedash-1.slp --tech=wavedash --details"
+                class="w-full bg-transparent text-zinc-100 placeholder-zinc-600 outline-none"
+              />
+            </div>
+            <button
+              id="cliRunPromptBtn"
+              class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition shadow-sm shrink-0 flex items-center gap-1.5"
+            >
+              <span>Execute ⏎</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bottom Half: Two-Column Live Terminal Viewport & Visual Mechanics Canvas -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 flex-1 min-h-[450px]">
+          <!-- Terminal Viewport (2 Columns) -->
+          <div class="lg:col-span-2 bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden flex flex-col shadow-inner">
+            <!-- Terminal Header -->
+            <div class="bg-zinc-900/90 px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between text-xs font-mono">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-red-500/80 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-yellow-500/80 inline-block"></span>
+                <span class="w-3 h-3 rounded-full bg-green-500/80 inline-block"></span>
+                <span class="text-zinc-400 ml-2 font-bold">Local CLI Output Terminal</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span id="cliStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-400">READY</span>
+                <button id="cliCopyTerminalBtn" class="text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 transition">
+                  Copy
+                </button>
+                <button id="cliClearTerminalBtn" class="text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 transition">
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <!-- Terminal Output Area -->
+            <div id="cliTerminalOutput" class="p-4 overflow-y-auto flex-1 font-mono text-xs text-zinc-300 space-y-1 max-h-[520px]">
+              <!-- ANSI Rendered Text -->
+            </div>
+          </div>
+
+          <!-- Mechanics Visualizer & Stick Scatter (1 Column) -->
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  🕹️ Controller Gate & Scatter
+                </h3>
+                <span class="text-[10px] text-zinc-500 font-mono" id="scatterPointsCount">0 points</span>
+              </div>
+              <p class="text-[11px] text-zinc-400 mb-3">
+                Visualizes 2D stick coordinates: deadzone (purple), wavedash notch angles (gold), and live execution points (cyan).
+              </p>
+
+              <!-- GameCube Analog Gate Canvas -->
+              <div class="flex justify-center my-2">
+                <canvas id="stickCanvas" width="220" height="220" class="rounded-xl border border-zinc-800 shadow-md bg-zinc-950"></canvas>
+              </div>
+            </div>
+
+            <!-- Mechanics Insights Card -->
+            <div class="bg-zinc-950/80 border border-zinc-800/80 rounded-lg p-3 text-xs font-mono mt-3 space-y-2">
+              <div class="text-[11px] font-bold text-indigo-400 uppercase">Mechanics Heuristics:</div>
+              <div class="text-zinc-400 text-[11px] leading-relaxed">
+                • <strong class="text-zinc-200">Wavedash:</strong> Jumpsquat (0x18) into LandingFall (0x2b) within 3-4 frames.<br />
+                • <strong class="text-zinc-200">Waveshine:</strong> Down-B ground reflector jump-cancelled into immediate airdodge.<br />
+                • <strong class="text-zinc-200">Edge-Cancel:</strong> Aerial landing at platform perimeter cancelling lag into teeter.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Match Analysis -->
+      <div id="analysisTab" class="tab-pane hidden flex-1">
+        <div id="matchAnalysisView">
+          <div class="flex items-center justify-center p-12 text-zinc-500">
+            <div class="text-center">
+              <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p class="font-mono text-sm">Analyzing replay data...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Live Stream Simulator -->
+      <div id="streamTab" class="tab-pane hidden flex-1 flex flex-col">
+        <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-5 mb-5 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider">SlpStream & SlpParser Feed Controls</h3>
+              <p class="text-xs text-zinc-400 mt-0.5">Simulates network streaming in chunks through Project Slippi's parser</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                id="startStreamBtn"
+                class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-sm flex items-center gap-1.5"
+              >
+                <span>▶ Start Stream</span>
+              </button>
+              <button
+                id="pauseStreamBtn"
+                disabled
+                class="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:hover:bg-amber-600 active:scale-95 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-1.5"
+              >
+                <span>⏸ Pause</span>
+              </button>
+              <button
+                id="stopStreamBtn"
+                disabled
+                class="bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:hover:bg-rose-600 active:scale-95 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-1.5"
+              >
+                <span>⏹ Stop</span>
+              </button>
+              <button
+                id="analyzeNowBtn"
+                class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold px-3 py-2 rounded-lg transition border border-zinc-700"
+              >
+                <span>⚡ Instant Parse</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-zinc-800/80 text-xs">
+            <div>
+              <div class="flex justify-between text-zinc-400 font-mono mb-1.5">
+                <span>Chunk Size</span>
+                <span class="text-indigo-400 font-bold"><span id="chunkSizeValue">1024</span> bytes</span>
+              </div>
+              <input
+                type="range"
+                id="chunkSize"
+                min="256"
+                max="8192"
+                step="256"
+                value="1024"
+                class="w-full accent-indigo-500 bg-zinc-800 h-2 rounded-lg cursor-pointer"
+              />
+            </div>
+            <div>
+              <div class="flex justify-between text-zinc-400 font-mono mb-1.5">
+                <span>Chunk Delay</span>
+                <span class="text-indigo-400 font-bold"><span id="delayMsValue">10</span> ms</span>
+              </div>
+              <input
+                type="range"
+                id="delayMs"
+                min="0"
+                max="100"
+                step="1"
+                value="10"
+                class="w-full accent-indigo-500 bg-zinc-800 h-2 rounded-lg cursor-pointer"
+              />
+            </div>
+            <div class="flex items-end">
+              <div class="w-full">
+                <span class="block text-zinc-400 font-mono mb-1.5">Filter Log Events</span>
+                <select
+                  id="logFilter"
+                  class="w-full bg-zinc-950 border border-zinc-800 text-zinc-300 rounded px-2.5 py-1.5 text-xs font-mono outline-none"
+                >
+                  <option value="all">All Events</option>
+                  <option value="settings">Game Settings</option>
+                  <option value="frame">Finalized Frames</option>
+                  <option value="end">Game End</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="w-full bg-zinc-900 rounded-full h-3 mb-5 overflow-hidden border border-zinc-800">
+          <div
+            id="progressBar"
+            class="bg-gradient-to-r from-indigo-500 via-violet-500 to-amber-500 h-3 rounded-full transition-all duration-150 text-[9px] font-mono font-bold flex items-center justify-center text-white"
+            style="width: 0%"
+          >
+            0%
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 font-mono">
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-3.5">
+            <span class="text-[11px] text-zinc-500 block uppercase">Total Events</span>
+            <span id="totalEvents" class="text-xl font-bold text-indigo-400">0</span>
+          </div>
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-3.5">
+            <span class="text-[11px] text-zinc-500 block uppercase">Frames Read</span>
+            <span id="framesProcessed" class="text-xl font-bold text-violet-400">0</span>
+          </div>
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-3.5">
+            <span class="text-[11px] text-zinc-500 block uppercase">Finalized Frames</span>
+            <span id="finalizedFrames" class="text-xl font-bold text-amber-400">0</span>
+          </div>
+          <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-3.5">
+            <span class="text-[11px] text-zinc-500 block uppercase">Elapsed Time</span>
+            <span id="elapsedTime" class="text-xl font-bold text-emerald-400">0s</span>
+          </div>
+        </div>
+
+        <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl overflow-hidden flex-1 flex flex-col min-h-[380px]">
+          <div class="bg-zinc-950/80 px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between text-xs">
+            <span class="font-bold text-zinc-300 font-mono flex items-center gap-2">
+              <span>📟 Streaming Event Log</span>
+            </span>
+            <button
+              id="clearLogBtn"
+              class="text-zinc-400 hover:text-zinc-200 text-xs font-mono px-2 py-1 rounded bg-zinc-800/80 hover:bg-zinc-800 transition"
+            >
+              Clear Log
+            </button>
+          </div>
+          <div id="eventLog" class="p-3 overflow-y-auto flex-1 max-h-[460px] space-y-0.5 bg-zinc-950/40">
+            <div class="text-xs text-zinc-600 font-mono py-2">
+              Engine ready. Click [Start Stream] to stream binary chunks into SlpStream and SlpParser.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: Replay Library Gallery -->
+      <div id="galleryTab" class="tab-pane hidden flex-1">
+        <div class="mb-4">
+          <h3 class="text-lg font-bold text-white">Bundled Slippi Replays</h3>
+          <p class="text-xs text-zinc-400">Select any replay to execute CLI mechanics inspection or match breakdown</p>
+        </div>
+        <div id="replayGalleryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-zinc-900 py-3.5 text-center text-xs text-zinc-500 font-mono">
+      Slippi-JS Developer CLI & Analyzer &copy; Project Slippi. Powered by official @slippi/slippi-js SDK.
+    </footer>
+
+    <!-- App Bundle -->
+    <script type="module" src="dist/bundle.js"></script>
+  </body>
+</html>

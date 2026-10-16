@@ -1,0 +1,7 @@
+{
+  "name": "Slippi JS Analyzer",
+  "description": "Interactive Project Slippi (.slp) replay file parser, streaming analyzer, and Melee match statistics visualizer.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

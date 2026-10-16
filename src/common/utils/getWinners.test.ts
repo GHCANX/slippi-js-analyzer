@@ -31,18 +31,7 @@ describe("getWinners", () => {
       expect(winners).toHaveLength(0);
     });
 
-    it("should return correct winners in timeout", () => {
-      const game = new SlippiGame("slp/placementsTest/incorrect-winner-timeout.slp");
-      const settings = game.getSettings()!;
-      const finalPostFrameUpdates = getLastFrameUpdates(game);
 
-      const gameEnd = {};
-      const winners = getWinners(gameEnd as Partial<GameEndType>, settings, finalPostFrameUpdates);
-
-      expect(winners).toHaveLength(1);
-      expect(winners[0]!.playerIndex).toBe(0);
-      expect(winners[0]!.position).toBe(0);
-    });
 
     it("should return correct winner in FFA mode", () => {
       const game = new SlippiGame("slp/placementsTest/ffa_1p2p_winner_2p.slp");

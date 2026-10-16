@@ -9,3 +9,6 @@ export * from "./types.js";
 export * from "./utils/gameTimer.js";
 export * from "./utils/slpParser.js";
 export * from "./utils/slpStream.js";
+export * from "./utils/bufferHelpers.js";
+export { SlippiGameBase } from "./SlippiGameBase.js";
+export { TypedEventEmitter } from "./utils/typedEventEmitter.js";
